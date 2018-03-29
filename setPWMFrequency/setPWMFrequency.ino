@@ -1,3 +1,7 @@
+// https://arduino-info.wikispaces.com/Arduino-PWM-Frequency
+
+// How do you change the PWM frequency?
+// In the void setup() part of your Arduino code, set or clear the CS02,CS01, and CS00 bits in the relevant TCCRnB register.
 // For Arduino Uno, Nano, Micro Magician, Mini Driver, Lilly Pad and any other board using ATmega 8, 168 or 328**
  
 //---------------------------------------------- Set PWM frequency for D5 & D6 -------------------------------
