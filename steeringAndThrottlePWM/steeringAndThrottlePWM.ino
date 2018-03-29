@@ -14,12 +14,12 @@
  */
 
 // set the pin used to simulate the PWM output to control steering
-// use a PWM-enabled pin, but avoid pins 5 and 6 since they have a higher clock rate
-int steering = 13;
-int throttle = 11;
-int leftButton = 2;
-int rightButton = 4;
-int throttleButton = 6; 
+int steering = 5;
+int throttle = 6;
+// set the pin for button input
+int leftButton = 11;
+int rightButton = 12;
+int throttleButton = 8; 
 
 void setup() {                
   // initialize the steering and throttle pins as outputs.
@@ -77,9 +77,9 @@ void brake() {
 // the loop routine runs over and over again forever:
 void loop() {
   //read the pushbutton value into a variable
-  int sensorValLeft = digitalRead(2);
-  int sensorValRight = digitalRead(4);
-  int sensorValThrottle = digitalRead(6);
+  int sensorValLeft = digitalRead(leftButton);
+  int sensorValRight = digitalRead(rightButton);
+  int sensorValThrottle = digitalRead(throttleButton);
   
   // Keep in mind the pullup means the pushbutton's
   // logic is inverted. It goes HIGH when it's open,
