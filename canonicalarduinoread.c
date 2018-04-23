@@ -82,7 +82,9 @@ int main(int argc, char *argv[]) {
 
     // Receive string from Arduino 
     n = read(fd, buf, 7);
-/*
+
+/* (I have no idea why this is here, it was in the original getline code
+    so I'm keeping it just in case.)
     // insert terminating zero in the string 
     buf[n] = 0;
 */
