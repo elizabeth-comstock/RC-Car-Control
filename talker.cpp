@@ -1,6 +1,5 @@
-/* Example ROS talker node. 
- * 
- * Repeatedly outputs float32 2.5. That's it. 
+/* Reads joystick position and then publishes it to topic "chatter", that the Arduino
+ * servo controller will subscribe to. 
  * 
  * Copyright (C) 2008, Morgan Quigley and Willow Garage, Inc.
  *
@@ -28,21 +27,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// %Tag(FULLTEXT)%
-// %Tag(ROS_HEADER)%
 #include "ros/ros.h"
-// %EndTag(ROS_HEADER)%
-// %Tag(MSG_HEADER)%
 #include "std_msgs/String.h"
-// %EndTag(MSG_HEADER)%
 #include "std_msgs/Float32.h"
 #include <sensor_msgs/Joy.h>
 
 #include <sstream>
 
-/**
- * This tutorial demonstrates simple sending of messages over the ROS system.
- */
+std_msgs::Float32 joystickPosition;
+
+void chatterCallback(const sensor_msgs::Joy::ConstPtr& msg) 
+{
+  joystickPosition.data = msg->axes[0];
+}
+
 int main(int argc, char **argv)
 {
   /**
@@ -55,18 +53,14 @@ int main(int argc, char **argv)
    * You must call one of the versions of ros::init() before using any other
    * part of the ROS system.
    */
-// %Tag(INIT)%
   ros::init(argc, argv, "talker");
-// %EndTag(INIT)%
 
   /**
    * NodeHandle is the main access point to communications with the ROS system.
    * The first NodeHandle constructed will fully initialize this node, and the last
    * NodeHandle destructed will close down the node.
    */
-// %Tag(NODEHANDLE)%
   ros::NodeHandle n;
-// %EndTag(NODEHANDLE)%
 
   /**
    * The advertise() function is how you tell ROS that you want to
@@ -85,30 +79,18 @@ int main(int argc, char **argv)
    * than we can send them, the number here specifies how many messages to
    * buffer up before throwing some away.
    */
-// %Tag(PUBLISHER)%
   ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("chatter", 1000);
-// %EndTag(PUBLISHER)%
 
-// %Tag(LOOP_RATE)%
+  /**
+   * Subscribes to joy, which the joystick publishes button and lever data to. 
+   */
+  ros::Subscriber sub = n.subscribe("joy", 1000, chatterCallback);
+
   ros::Rate loop_rate(10);
-// %EndTag(LOOP_RATE)%
 
-// %Tag(ROS_OK)%
   while (ros::ok())
   {
-// %EndTag(ROS_OK)%
-    /**
-     * This is a message object. You stuff it with data, and then publish it.
-     */
-// %Tag(FILL_MESSAGE)%
-    std_msgs::Float32 msg;
-
-    msg.data = 2.5;
-// %EndTag(FILL_MESSAGE)%
-
-// %Tag(ROSCONSOLE)%
-    ROS_INFO("%f", msg.data);
-// %EndTag(ROSCONSOLE)%
+    ROS_INFO("%f", joystickPosition.data);
 
     /**
      * The publish() function is how you send messages. The parameter
@@ -116,20 +98,12 @@ int main(int argc, char **argv)
      * given as a template parameter to the advertise<>() call, as was done
      * in the constructor above.
      */
-// %Tag(PUBLISH)%
-    chatter_pub.publish(msg);
-// %EndTag(PUBLISH)%
+    chatter_pub.publish(joystickPosition);
 
-// %Tag(SPINONCE)%
     ros::spinOnce();
-// %EndTag(SPINONCE)%
 
-// %Tag(RATE_SLEEP)%
     loop_rate.sleep();
-// %EndTag(RATE_SLEEP)%
   }
-
 
   return 0;
 }
-// %EndTag(FULLTEXT)%
