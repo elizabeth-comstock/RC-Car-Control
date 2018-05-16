@@ -28,17 +28,16 @@
  */
 
 #include "ros/ros.h"
-#include "std_msgs/String.h"
-#include "std_msgs/Float32.h"
+#include "std_msgs/UInt8.h"
 #include <sensor_msgs/Joy.h>
 
 #include <sstream>
 
-std_msgs::Float32 joystickPosition;
+std_msgs::UInt8 joystickPosition;
 
 void chatterCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
-  joystickPosition.data = msg->axes[0];
+  joystickPosition.data = 90 + (msg->axes[0] * 60);
 }
 
 int main(int argc, char **argv)
@@ -63,6 +62,11 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   /**
+   * Subscribes to joy, which the joystick publishes button and lever data to. 
+   */
+  ros::Subscriber sub = n.subscribe("joy", 1000, chatterCallback);
+
+  /**
    * The advertise() function is how you tell ROS that you want to
    * publish on a given topic name. This invokes a call to the ROS
    * master node, which keeps a registry of who is publishing and who
@@ -79,18 +83,14 @@ int main(int argc, char **argv)
    * than we can send them, the number here specifies how many messages to
    * buffer up before throwing some away.
    */
-  ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("chatter", 1000);
-
-  /**
-   * Subscribes to joy, which the joystick publishes button and lever data to. 
-   */
-  ros::Subscriber sub = n.subscribe("joy", 1000, chatterCallback);
+  ros::Publisher chatter_pub = n.advertise<std_msgs::UInt8>("chatter", 1000);
 
   ros::Rate loop_rate(10);
 
   while (ros::ok())
   {
-    ROS_INFO("%f", joystickPosition.data);
+    // DEBUG
+    ROS_INFO("%u", joystickPosition.data);
 
     /**
      * The publish() function is how you send messages. The parameter
