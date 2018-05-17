@@ -20,33 +20,34 @@
 
 #include <Servo.h> 
 #include <ros.h>
-#include <std_msgs/UInt8.h>
+#include <std_msgs/UInt32.h>
 
 ros::NodeHandle n;
 
 Servo steeringServo;
+Servo throttleServo;
 
-void steeringServoCallback(const std_msgs::UInt8& msg){
-  steeringServo.write(msg.data);
-  digitalWrite(13, HIGH-digitalRead(13));  //toggle led
+void servoCallback(const std_msgs::UInt32& msg){
+  int throttleValue = msg.data % 1000;
+  int steeringValue = (msg.data - throttleValue) / 1000;
+  steeringServo.write(steeringValue);
+  throttleServo.write(throttleValue);
 }
 
-ros::Subscriber<std_msgs::UInt8> steering_sub("steering", steeringServoCallback);
+ros::Subscriber<std_msgs::UInt32> sub("cinnabar", servoCallback);
 
 void setup(){
   // opens serial port, sets data rate to 9600 Hz
   Serial.begin(9600);
 
-  pinMode(13, OUTPUT);
-
   n.initNode();
-  n.subscribe(steering_sub);
+  n.subscribe(sub);
 
-  steeringServo.attach(9); //attach it to pin 9
+  steeringServo.attach(9); 
+  throttleServo.attach(10);
 }
 
 void loop(){
   n.spinOnce();
-  delay(10);
+  delay(100);
 }
-
