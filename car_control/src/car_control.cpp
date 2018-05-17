@@ -1,5 +1,5 @@
-/* Reads joystick position and then publishes it to topic "chatter", that the Arduino
- * servo controller will subscribe to. 
+/* Reads joystick position and then publishes it to topic "cinnabar",
+ * that the Arduino servo controller will subscribe to. 
  * 
  * Copyright (C) 2008, Morgan Quigley and Willow Garage, Inc.
  *
@@ -10,9 +10,9 @@
  *   * Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- *   * Neither the names of Stanford University or Willow Garage, Inc. nor the names of
- *     its contributors may be used to endorse or promote products derived from
- *     this software without specific prior written permission.
+ *   * Neither the names of Stanford University or Willow Garage, Inc. nor the 
+ *     names of its contributors may be used to endorse or promote products 
+ *     derived from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -28,12 +28,12 @@
  */
 
 #include "ros/ros.h"
-#include "std_msgs/UInt8.h"
+#include "std_msgs/UInt32.h"
 #include <sensor_msgs/Joy.h>
 
 #include <sstream>
 
-std_msgs::UInt8 steeringJoystickPosition;
+std_msgs::UInt32 joystickPosition;
 
 /**
  * The XBox controller outputs a (class?) of button, joystick, and lever position data.
@@ -42,7 +42,10 @@ std_msgs::UInt8 steeringJoystickPosition;
  */
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
-  steeringJoystickPosition.data = 90 + (msg->axes[0] * 60);
+  int steeringJoystickPosition = 90 + (msg->axes[0] * 60);
+  int throttleLeverPosition = 85 + (msg->axes[4] * 15);
+  // first three digits steering, last three digits throttle
+  joystickPosition.data = (steeringJoystickPosition * 1000) + throttleLeverPosition;
 }
 
 int main(int argc, char **argv)
@@ -90,14 +93,14 @@ int main(int argc, char **argv)
    * than we can send them, the number here specifies how many messages to
    * buffer up before throwing some away.
    */
-  ros::Publisher steering_pub = n.advertise<std_msgs::UInt8>("steering", 1000);
+  ros::Publisher pub = n.advertise<std_msgs::UInt32>("cinnabar", 1000);
 
-  ros::Rate loop_rate(100);
+  ros::Rate loop_rate(10);
 
   while (ros::ok())
   {
     // DEBUG
-    ROS_INFO("%u", steeringJoystickPosition.data);
+    ROS_INFO("%u", joystickPosition.data);
 
     /**
      * The publish() function is how you send messages. The parameter
@@ -105,7 +108,7 @@ int main(int argc, char **argv)
      * given as a template parameter to the advertise<>() call, as was done
      * in the constructor above.
      */
-    steering_pub.publish(steeringJoystickPosition);
+    pub.publish(joystickPosition);
 
     ros::spinOnce();
 
