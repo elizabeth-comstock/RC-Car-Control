@@ -34,66 +34,86 @@
 #include <sstream>
 
 std_msgs::UInt32 joystickPosition;
+double timeSinceLastJoyMessage = 0;
 
-/**
- * The XBox controller outputs a (class?) of button, joystick, and lever position data.
- * In here, we call it msg, and extract the data corresponding to the positions of the 
- * steering joystick and acceleration lever. 
- */
+/**********************************************************************************
+ If no signal is received from the XBox controller after a while due to a disconnect 
+ or error, "steering 90 throttle 110" is sent to the Arduino to instruct it to turn
+ the car straight and brake. 
+ **********************************************************************************/
+void disconnectCallback(/*const ros::TimerEvent&*/)
+{
+  joystickPosition.data = 90100;
+}
+
+/**********************************************************************************
+ The XBox controller outputs a (class?) of button, joystick, and lever position data.
+ In here, we call it msg, and extract the data corresponding to the positions of the 
+ steering joystick and acceleration lever. 
+
+ This callback only executes upon receipt of message from joystick, and does not 
+ directly send a message to the Arduino. It only modifies the message sent. 
+ **********************************************************************************/
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
   int steeringJoystickPosition = 90 + (msg->axes[0] * 60);
   int throttleLeverPosition = 85 + (msg->axes[4] * 15);
   // first three digits steering, last three digits throttle
   joystickPosition.data = (steeringJoystickPosition * 1000) + throttleLeverPosition;
+
+  timeSinceLastJoyMessage = 0;
 }
 
 int main(int argc, char **argv)
 {
-  /**
-   * The ros::init() function needs to see argc and argv so that it can perform
-   * any ROS arguments and name remapping that were provided at the command line.
-   * For programmatic remappings you can use a different version of init() which takes
-   * remappings directly, but for most command-line programs, passing argc and argv is
-   * the easiest way to do it.  The third argument to init() is the name of the node.
-   *
-   * You must call one of the versions of ros::init() before using any other
-   * part of the ROS system.
-   */
+  /**********************************************************************************
+   The ros::init() function needs to see argc and argv so that it can perform
+   any ROS arguments and name remapping that were provided at the command line.
+   For programmatic remappings you can use a different version of init() which takes
+   remappings directly, but for most command-line programs, passing argc and argv is
+   the easiest way to do it.  The third argument to init() is the name of the node.
+   
+   You must call one of the versions of ros::init() before using any other
+   part of the ROS system.
+   **********************************************************************************/
   ros::init(argc, argv, "car_control");
 
-  /**
-   * NodeHandle is the main access point to communications with the ROS system.
-   * The first NodeHandle constructed will fully initialize this node, and the last
-   * NodeHandle destructed will close down the node.
-   */
+  /**********************************************************************************
+   NodeHandle is the main access point to communications with the ROS system.
+   The first NodeHandle constructed will fully initialize this node, and the last
+   NodeHandle destructed will close down the node.
+   **********************************************************************************/
   ros::NodeHandle n;
 
-  /**
-   * Subscribes to topic joy, which the joystick publishes button and lever data to. 
-   * On receipt of data, executes function joystickCallback, which converts joystick
-   * data to a UInt8 which will be sent to the Arduino. 
-   */
+  /**********************************************************************************
+   Subscribes to topic joy, which the joystick publishes button and lever data to. 
+   On receipt of data, executes function joystickCallback, which converts joystick
+   data to a UInt8 which will be sent to the Arduino. 
+   **********************************************************************************/
   ros::Subscriber sub = n.subscribe("joy", 1000, joystickCallback);
 
-  /**
-   * The advertise() function is how you tell ROS that you want to
-   * publish on a given topic name. This invokes a call to the ROS
-   * master node, which keeps a registry of who is publishing and who
-   * is subscribing. After this advertise() call is made, the master
-   * node will notify anyone who is trying to subscribe to this topic name,
-   * and they will in turn negotiate a peer-to-peer connection with this
-   * node.  advertise() returns a Publisher object which allows you to
-   * publish messages on that topic through a call to publish().  Once
-   * all copies of the returned Publisher object are destroyed, the topic
-   * will be automatically unadvertised.
-   *
-   * The second parameter to advertise() is the size of the message queue
-   * used for publishing messages.  If messages are published more quickly
-   * than we can send them, the number here specifies how many messages to
-   * buffer up before throwing some away.
-   */
+  /**********************************************************************************
+   The advertise() function is how you tell ROS that you want to publish on a given 
+   topic name. This invokes a call to the ROS master node, which keeps a registry of 
+   who is publishing and who is subscribing. After this advertise() call is made, 
+   the master node will notify anyone who is trying to subscribe to this topic name,
+   and they will in turn negotiate a peer-to-peer connection with this node.  
+   advertise() returns a Publisher object which allows you to publish messages on 
+   that topic through a call to publish(). Once all copies of the returned Publisher
+   object are destroyed, the topic will be automatically unadvertised.
+   
+   The second parameter to advertise() is the size of the message queue used for
+   publishing messages.  If messages are published more quickly than we can send them,
+   the number here specifies how many messages to buffer up before throwing some away.
+   **********************************************************************************/
   ros::Publisher pub = n.advertise<std_msgs::UInt32>("cinnabar", 1000);
+
+  /**********************************************************************************
+   Creates a timer that will be used to record time since last message received by the
+   XBox controller. If the time exceeds 1.0 seconds, we assume that a disconnect or 
+   error has occurred, and call the disconnectCallback() function to stop the car. 
+   **********************************************************************************/
+  //ros::Timer disconnectTimer = n.createTimer(ros::Duration(1.0), disconnectCallback);
 
   ros::Rate loop_rate(10);
 
@@ -102,12 +122,16 @@ int main(int argc, char **argv)
     // DEBUG
     ROS_INFO("%u", joystickPosition.data);
 
-    /**
-     * The publish() function is how you send messages. The parameter
-     * is the message object. The type of this object must agree with the type
-     * given as a template parameter to the advertise<>() call, as was done
-     * in the constructor above.
-     */
+    timeSinceLastJoyMessage = timeSinceLastJoyMessage + 0.1;
+
+    if (timeSinceLastJoyMessage > 1) 
+      disconnectCallback();
+
+    /*******************************************************************************
+     The publish() function is how you send messages. The parameter is the message
+     object. The type of this object must agree with the type given as a template
+     parameter to the advertise<>() call, as was done in the constructor above.
+     *******************************************************************************/
     pub.publish(joystickPosition);
 
     ros::spinOnce();
