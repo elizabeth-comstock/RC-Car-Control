@@ -29,6 +29,7 @@ ros::NodeHandle n;
 Servo steeringServo;
 Servo throttleServo;
 
+// time in seconds since last joy message received before automatic stop
 const double noJoyMessageThreshold = 2;
 double timeSinceLastJoyMessage = noJoyMessageThreshold;
 const unsigned long runFrequency = 60;
