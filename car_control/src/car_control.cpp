@@ -34,14 +34,16 @@
 #include <sstream>
 
 std_msgs::UInt32 joystickPosition;
-double timeSinceLastJoyMessage = 0;
+const double noJoyMessageThreshold = 2;
+double timeSinceLastJoyMessage = noJoyMessageThreshold;
+const double runFrequency = 60;
 
 /**********************************************************************************
  If no signal is received from the XBox controller after a while due to a disconnect 
  or error, "steering 90 throttle 110" is sent to the Arduino to instruct it to turn
  the car straight and brake. 
  **********************************************************************************/
-void disconnectCallback(/*const ros::TimerEvent&*/)
+void disconnectCallback()
 {
   joystickPosition.data = 90100;
 }
@@ -56,8 +58,8 @@ void disconnectCallback(/*const ros::TimerEvent&*/)
  **********************************************************************************/
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
-  int steeringJoystickPosition = 90 + (msg->axes[0] * 60);
-  int throttleLeverPosition = 85 + (msg->axes[4] * 15);
+  int steeringJoystickPosition = 90 + (msg->axes[2] * 60);
+  int throttleLeverPosition = 100 - (msg->axes[1] * 15);
   // first three digits steering, last three digits throttle
   joystickPosition.data = (steeringJoystickPosition * 1000) + throttleLeverPosition;
 
@@ -115,16 +117,16 @@ int main(int argc, char **argv)
    **********************************************************************************/
   //ros::Timer disconnectTimer = n.createTimer(ros::Duration(1.0), disconnectCallback);
 
-  ros::Rate loop_rate(10);
+  ros::Rate loop_rate(runFrequency);
 
   while (ros::ok())
   {
     // DEBUG
     ROS_INFO("%u", joystickPosition.data);
 
-    timeSinceLastJoyMessage = timeSinceLastJoyMessage + 0.1;
+    timeSinceLastJoyMessage = timeSinceLastJoyMessage + (1 / runFrequency);
 
-    if (timeSinceLastJoyMessage > 1) 
+    if (timeSinceLastJoyMessage > noJoyMessageThreshold) 
       disconnectCallback();
 
     /*******************************************************************************
