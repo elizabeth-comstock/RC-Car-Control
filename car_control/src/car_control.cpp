@@ -34,8 +34,10 @@
 #include <sstream>
 
 std_msgs::UInt32 joystickPosition;
+// time in seconds since last joy message received before automatic stop
 const double noJoyMessageThreshold = 2;
 double timeSinceLastJoyMessage = noJoyMessageThreshold;
+// make sure this is the same as in the Arduino
 const double runFrequency = 60;
 
 /**********************************************************************************
@@ -58,8 +60,17 @@ void disconnectCallback()
  **********************************************************************************/
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
+  // for normal forward operation. the two integers must be declared in this scope. 
   int steeringJoystickPosition = 90 + (msg->axes[2] * 60);
   int throttleLeverPosition = 100 - (msg->axes[1] * 15);
+
+  // this makes the brakes more responsive and dampens the steering to prevent skidding
+  if (msg->axes[1] < -0.03)
+  {
+    steeringJoystickPosition = 90 + (msg->axes[2] * 30);
+    throttleLeverPosition = 100 - (msg->axes[1] * 24);
+  }
+
   // first three digits steering, last three digits throttle
   joystickPosition.data = (steeringJoystickPosition * 1000) + throttleLeverPosition;
 
@@ -109,13 +120,6 @@ int main(int argc, char **argv)
    the number here specifies how many messages to buffer up before throwing some away.
    **********************************************************************************/
   ros::Publisher pub = n.advertise<std_msgs::UInt32>("cinnabar", 1000);
-
-  /**********************************************************************************
-   Creates a timer that will be used to record time since last message received by the
-   XBox controller. If the time exceeds 1.0 seconds, we assume that a disconnect or 
-   error has occurred, and call the disconnectCallback() function to stop the car. 
-   **********************************************************************************/
-  //ros::Timer disconnectTimer = n.createTimer(ros::Duration(1.0), disconnectCallback);
 
   ros::Rate loop_rate(runFrequency);
 
