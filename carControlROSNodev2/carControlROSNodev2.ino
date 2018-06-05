@@ -29,7 +29,9 @@ ros::NodeHandle n;
 Servo steeringServo;
 Servo throttleServo;
 
-double timeSinceLastJoyMessage = 0;
+const double noJoyMessageThreshold = 2;
+double timeSinceLastJoyMessage = noJoyMessageThreshold;
+const unsigned long runFrequency = 60;
 
 void disconnectCallback(){
   steeringServo.write(90);
@@ -59,11 +61,11 @@ void setup(){
 }
 
 void loop(){
-  timeSinceLastJoyMessage = timeSinceLastJoyMessage + 0.1;
+  timeSinceLastJoyMessage = timeSinceLastJoyMessage + (1 / runFrequency);
 
-  if (timeSinceLastJoyMessage > 1) 
+  if (timeSinceLastJoyMessage > noJoyMessageThreshold) 
     disconnectCallback();
   
   n.spinOnce();
-  delay(100);
+  delay(1000 / runFrequency);
 }
