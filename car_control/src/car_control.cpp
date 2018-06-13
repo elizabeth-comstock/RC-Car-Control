@@ -61,20 +61,26 @@ void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
   // for normal forward operation. the two integers must be declared in this scope. 
   int steeringJoystickPosition = 90 + (msg->axes[2] * 45);
-  int throttleLeverPosition = 100 - (msg->axes[1] * 21);
+  int throttleLeverPosition = 100 - (msg->axes[1] * 15);
 
   // extreme low speed on Y button hold for mapping purposes
-  if (msg->buttons[3] == 1)
+  if (msg->axes[5] == 1)
   {
     throttleLeverPosition = 93;
   }
 
-  // this makes the brakes more responsive and dampens the steering to prevent skidding
+  // this makes the brakes more responsive and enables a reverse function
   if (msg->axes[1] < -0.03)
   {
-    steeringJoystickPosition = 90 + (msg->axes[2] * 30);
-    throttleLeverPosition = 100 - (msg->axes[1] * 50);
+    throttleLeverPosition = 100 - (msg->axes[1] * 24);
   }
+
+  // emergency brake
+  if (msg->axes[5] == -1)
+  {
+    throttleLeverPosition = 150;
+  }
+
 
   // first three digits steering, last three digits throttle
   joystickPosition.data = (steeringJoystickPosition * 1000) + throttleLeverPosition;
