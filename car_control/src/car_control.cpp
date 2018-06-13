@@ -54,21 +54,26 @@ void disconnectCallback()
  The XBox controller outputs a (class?) of button, joystick, and lever position data.
  In here, we call it msg, and extract the data corresponding to the positions of the 
  steering joystick and acceleration lever. 
-
  This callback only executes upon receipt of message from joystick, and does not 
  directly send a message to the Arduino. It only modifies the message sent. 
  **********************************************************************************/
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
   // for normal forward operation. the two integers must be declared in this scope. 
-  int steeringJoystickPosition = 90 + (msg->axes[2] * 60);
-  int throttleLeverPosition = 100 - (msg->axes[1] * 15);
+  int steeringJoystickPosition = 90 + (msg->axes[2] * 45);
+  int throttleLeverPosition = 100 - (msg->axes[1] * 21);
+
+  // extreme low speed on Y button hold for mapping purposes
+  if (msg->buttons[3] == 1)
+  {
+    throttleLeverPosition = 93;
+  }
 
   // this makes the brakes more responsive and dampens the steering to prevent skidding
   if (msg->axes[1] < -0.03)
   {
     steeringJoystickPosition = 90 + (msg->axes[2] * 30);
-    throttleLeverPosition = 100 - (msg->axes[1] * 24);
+    throttleLeverPosition = 100 - (msg->axes[1] * 50);
   }
 
   // first three digits steering, last three digits throttle
