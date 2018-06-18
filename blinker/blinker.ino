@@ -1,7 +1,23 @@
-/*********************************************************
- Controls the indicator lights on a Mitsubishi i-MIEV 
- through a relay. 
- *********************************************************/
+/***********************************************************
+ This program sets up a ROS node on Arduino, to control turn 
+ indicator lights on an autonomous vehicle through a relay. 
+ 
+ The Arduino ROS node subscribes to the topic blinker, 
+ which publishes a UInt8 that denotes which blinker light
+ should be flashing. The integers are assigned as follows:
+ 
+ 1 - turn left
+ 2 - turn right
+ 3 - both lights flashing (e.g. when stopping the vehicle
+     in the middle of the road)
+ 
+ All others - no lights on
+ 
+ Arduino pin layout is as follows: 
+ 
+ Pin 8 - left blinker
+ Pin 9 - right blinker
+ ***********************************************************/
 
 #if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
