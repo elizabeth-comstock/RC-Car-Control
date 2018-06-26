@@ -60,7 +60,7 @@ void disconnectCallback()
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
   // for normal forward operation. the two integers must be declared in this scope. 
-  int steeringJoystickPosition = 90 + (msg->axes[2] * 45);
+  int steeringJoystickPosition = 90 + (msg->axes[2] * 30);
   int throttleLeverPosition = 100 - (msg->axes[1] * 15);
 
   // extreme low speed on Y button hold for mapping purposes
