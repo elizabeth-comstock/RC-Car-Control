@@ -1,4 +1,4 @@
-/* Reads joystick position and then publishes it to topic "cinnabar",
+/* Reads velocity (linear and angular) commands from move_base node and then publishes it to topic,
  * that the Arduino servo controller will subscribe to. 
  * 
  * Copyright (C) 2008, Morgan Quigley and Willow Garage, Inc.
@@ -29,27 +29,38 @@
 
 #include "ros/ros.h"
 #include "std_msgs/UInt32.h"
-#include <sensor_msgs/Joy.h>
-#include <car_control/joystick.h>
 
 #include <sstream>
 
-car_control::joystick joystick;
+std_msgs::UInt32 navigation;
+std_msgs::Uint32 navigation;
 // time in seconds since last joy message received before automatic stop
-const double noJoyMessageThreshold = 2;
-double timeSinceLastJoyMessage = noJoyMessageThreshold;
+const double noMessageThreshold = 2;
+double timeSinceLastMessage = noJoyMessageThreshold;
 // make sure this is the same as in the Arduino
 const double runFrequency = 60;
-int flag = 0;
+int steeringPosition = 90;
+int ThrottlePosition = 100;
+
+double maxVelocity = 0.5;
+double maxSteering = 0.005;
+bool flag = false;
 
 /**********************************************************************************
  If no signal is received from the XBox controller after a while due to a disconnect 
  or error, "steering 90 throttle 110" is sent to the Arduino to instruct it to turn
  the car straight and brake. 
  **********************************************************************************/
-void disconnectCallback()
+void stopCallback()
 {
-  joystick.joystick = 90100;
+  navigation.data = 90100;
+}
+
+void joystickCallback(const std_msgs::UInt32MultiArray::ConstPtr& msg)
+{
+ if (msg.flag == 1){
+    flag = !flag;
+ }
 }
 
 /**********************************************************************************
@@ -59,37 +70,26 @@ void disconnectCallback()
  This callback only executes upon receipt of message from joystick, and does not 
  directly send a message to the Arduino. It only modifies the message sent. 
  **********************************************************************************/
-void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
+void navigationCallback(const ackermann_msgs::AckermannDrive.::ConstPtr& msg) 
 {
+ 
   
+  int steering_angle = msg->steering_angle;
+  int steering_angle_velocity = msg->steering_angle_velocity;
+  int translational_speed = msg->speed;
+  int translational_acceleration = msg->acceleration;
+  int jerk = msg->jerk;
+  
+  
+  //To DO: convert steering_angle_velocity and acceleration values to the same scale as the arduino (94 to 100)
   // for normal forward operation. the two integers must be declared in this scope. 
-  int steeringJoystickPosition = 94 + (msg->axes[2] * 20);
-  int throttleLeverPosition = 100 - (msg->axes[1] * 15);
-
-  // extreme low speed on Y button hold for mapping purposes
-  if (msg->axes[5] == 1)
-  {
-    throttleLeverPosition = 93;
-  }
-
-  // this makes the brakes more responsive and enables a reverse function
-  if (msg->axes[1] < -0.03)
-  {
-    throttleLeverPosition = 100 - (msg->axes[1] * 24);
-  }
-
-  // emergency brake
-  if (msg->axes[5] == -1)
-  {
-    throttleLeverPosition = 150;
-  }
-
-
+  int steeringPosition = steeringPosition + msg->steering_angle_velocity;
+  int throttlePosition = throttlePosition + msg->acceleration;
+  
   // first three digits steering, last three digits throttle
-  joystick.joystick = (steeringJoystickPosition * 1000) + throttleLeverPosition;
+  navigation.data = (steeringJoystickPosition * 1000) + throttleLeverPosition;
 
-  timeSinceLastJoyMessage = 0;
-
+  timeSinceLastMessage = 0;
 }
 
 int main(int argc, char **argv)
@@ -118,7 +118,8 @@ int main(int argc, char **argv)
    On receipt of data, executes function joystickCallback, which converts joystick
    data to a UInt8 which will be sent to the Arduino. 
    **********************************************************************************/
-  ros::Subscriber sub = n.subscribe("joy", 1000, joystickCallback);
+  ros::Subscriber sub = n.subscribe("ackermann", 1000, navigationCallback);
+  ros::Subscriber sub = n.subscribe("cinnabar", 1000, joystickCallback);
 
   /**********************************************************************************
    The advertise() function is how you tell ROS that you want to publish on a given 
@@ -134,27 +135,28 @@ int main(int argc, char **argv)
    publishing messages.  If messages are published more quickly than we can send them,
    the number here specifies how many messages to buffer up before throwing some away.
    **********************************************************************************/
-  ros::Publisher pub = n.advertise<std_msgs::UInt32>("cinnabar", 1000);
+  ros::Publisher pub = n.advertise<std_msgs::UInt32>("auto", 1000);
 
   ros::Rate loop_rate(runFrequency);
 
   while (ros::ok())
   {
     // DEBUG
-    ROS_INFO("%u", joystick.joystick);
+    ROS_INFO("%u", navigation.data);
 
-    timeSinceLastJoyMessage = timeSinceLastJoyMessage + (1 / runFrequency);
+    if (flag){
+    timeSinceLastMessage = timeSinceLastMessage + (1 / runFrequency);
+    
+    if (timeSinceLastMessage > noMessageThreshold) 
+      stopCallback();
 
-    if (timeSinceLastJoyMessage > noJoyMessageThreshold) 
-      disconnectCallback();
-
+}
     /*******************************************************************************
      The publish() function is how you send messages. The parameter is the message
      object. The type of this object must agree with the type given as a template
      parameter to the advertise<>() call, as was done in the constructor above.
      *******************************************************************************/
-    
-    pub.publish(joystick);
+    pub.publish(navigation);
 
     ros::spinOnce();
 

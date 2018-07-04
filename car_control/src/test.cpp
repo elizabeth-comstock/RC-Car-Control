@@ -1,4 +1,4 @@
-/* Reads joystick position and then publishes it to topic "cinnabar",
+/* Reads velocity (linear and angular) commands from move_base node and then publishes it to topic,
  * that the Arduino servo controller will subscribe to. 
  * 
  * Copyright (C) 2008, Morgan Quigley and Willow Garage, Inc.
@@ -29,38 +29,44 @@
 
 #include "ros/ros.h"
 #include "std_msgs/UInt32.h"
+#include "car_control/joystick.h"
+#include "geometry_msgs/Twist.h"
 #include <sensor_msgs/Joy.h>
-#include <car_control/joystick.h>
-
 #include <sstream>
 
-car_control::joystick joystick;
+uint32_t joynavigation = 90100;
+uint32_t autonavigation = 90100;
+std_msgs::UInt32 navigation;
 // time in seconds since last joy message received before automatic stop
-const double noJoyMessageThreshold = 2;
-double timeSinceLastJoyMessage = noJoyMessageThreshold;
+const double noMessageThreshold = 2;
+double timeSinceLastMessage = noMessageThreshold;
 // make sure this is the same as in the Arduino
 const double runFrequency = 60;
-int flag = 0;
+int steeringPosition = 90;
+int ThrottlePosition = 100;
+
+double maxVelocity = 0.5;
+double maxSteering = 0.005;
+bool flag = false;
+int throttle = 100;
+int steering = 90;
 
 /**********************************************************************************
  If no signal is received from the XBox controller after a while due to a disconnect 
  or error, "steering 90 throttle 110" is sent to the Arduino to instruct it to turn
  the car straight and brake. 
  **********************************************************************************/
-void disconnectCallback()
+void stopCallback()
 {
-  joystick.joystick = 90100;
+  navigation.data = 90100;
 }
 
-/**********************************************************************************
- The XBox controller outputs a (class?) of button, joystick, and lever position data.
- In here, we call it msg, and extract the data corresponding to the positions of the 
- steering joystick and acceleration lever. 
- This callback only executes upon receipt of message from joystick, and does not 
- directly send a message to the Arduino. It only modifies the message sent. 
- **********************************************************************************/
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
+  int button = msg->buttons[2];
+  if (button == 1){
+	  flag = !flag;
+  }
   
   // for normal forward operation. the two integers must be declared in this scope. 
   int steeringJoystickPosition = 94 + (msg->axes[2] * 20);
@@ -86,10 +92,66 @@ void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg)
 
 
   // first three digits steering, last three digits throttle
-  joystick.joystick = (steeringJoystickPosition * 1000) + throttleLeverPosition;
+  joynavigation = (steeringJoystickPosition * 1000) + throttleLeverPosition;
 
-  timeSinceLastJoyMessage = 0;
+  timeSinceLastMessage = 0;
 
+}
+
+/**********************************************************************************
+ The XBox controller outputs a (class?) of button, joystick, and lever position data.
+ In here, we call it msg, and extract the data corresponding to the positions of the 
+ steering joystick and acceleration lever. 
+ This callback only executes upon receipt of message from joystick, and does not 
+ directly send a message to the Arduino. It only modifies the message sent. 
+ **********************************************************************************/
+void navigationCallback(const geometry_msgs::Twist::ConstPtr& msg) 
+{
+  
+  // first three digits steering, last three digits throttle
+  //navigation.data = (steeringJoystickPosition * 1000) + throttleLeverPosition;
+
+  if (flag == false){
+	  if (msg->linear.x > 0){
+		  throttle = 90;
+	  }
+	  else {
+		  if (msg->linear.x < 0){
+		  throttle = 110;
+	  }
+  else {
+	  throttle = 100;
+	 }
+ }
+	 
+      if (msg->angular.z > 0){
+		  steering = 80;
+	  }
+	  else {
+		  if (msg->angular.z < 0){
+		  steering = 100;
+	  }
+  else {
+	  steering = 90;
+  }
+}
+	  autonavigation = (steering * 1000) + throttle;
+	  timeSinceLastMessage = 0;
+  
+}
+}
+
+
+void realnavigationCallback(const geometry_msgs::Twist::ConstPtr& msg)
+{
+	if (!flag){
+		throttle = 100 - ((msg->linear.x)/0.2)*15;
+		
+        steering = 90 - ((msg->angular.z)/0.2)*20;
+        
+        autonavigation = (steering * 1000) + throttle;
+        timeSinceLastMessage = 0;
+	}
 }
 
 int main(int argc, char **argv)
@@ -118,7 +180,8 @@ int main(int argc, char **argv)
    On receipt of data, executes function joystickCallback, which converts joystick
    data to a UInt8 which will be sent to the Arduino. 
    **********************************************************************************/
-  ros::Subscriber sub = n.subscribe("joy", 1000, joystickCallback);
+  ros::Subscriber sub = n.subscribe("cmd_vel", 1000, realnavigationCallback);
+  ros::Subscriber suby = n.subscribe("joy", 1000, joystickCallback);
 
   /**********************************************************************************
    The advertise() function is how you tell ROS that you want to publish on a given 
@@ -141,21 +204,28 @@ int main(int argc, char **argv)
   while (ros::ok())
   {
     // DEBUG
-    ROS_INFO("%u", joystick.joystick);
+    ROS_INFO("%u", navigation.data);
 
-    timeSinceLastJoyMessage = timeSinceLastJoyMessage + (1 / runFrequency);
 
-    if (timeSinceLastJoyMessage > noJoyMessageThreshold) 
-      disconnectCallback();
+    timeSinceLastMessage = timeSinceLastMessage + (1 / runFrequency);
+    
+    if (timeSinceLastMessage > noMessageThreshold) 
+      stopCallback();
 
     /*******************************************************************************
      The publish() function is how you send messages. The parameter is the message
      object. The type of this object must agree with the type given as a template
      parameter to the advertise<>() call, as was done in the constructor above.
      *******************************************************************************/
-    
-    pub.publish(joystick);
-
+    if (flag){
+		navigation.data = joynavigation;
+		pub.publish(navigation);
+	}
+	else{
+		navigation.data = autonavigation;
+		pub.publish(navigation);
+	}
+	
     ros::spinOnce();
 
     loop_rate.sleep();
