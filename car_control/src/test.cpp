@@ -27,6 +27,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <math.h>
 #include "ros/ros.h"
 #include "std_msgs/UInt32.h"
 #include "car_control/joystick.h"
@@ -50,15 +51,20 @@ double maxSteering = 0.005;
 bool flag = false;
 int throttle = 100;
 int steering = 90;
+double wheelbase = 0.5;
 
 /**********************************************************************************
  If no signal is received from the XBox controller after a while due to a disconnect 
  or error, "steering 90 throttle 110" is sent to the Arduino to instruct it to turn
  the car straight and brake. 
  **********************************************************************************/
+double degreesToRadians(double angle_in_degrees){
+	return angle_in_degrees * (M_PI / 180.0);
+}
+
 void stopCallback()
 {
-  navigation.data = 90100;
+  navigation.data = 94100;
 }
 
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
@@ -69,7 +75,7 @@ void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg)
   }
   
   // for normal forward operation. the two integers must be declared in this scope. 
-  int steeringJoystickPosition = 94 + (msg->axes[2] * 20);
+  int steeringJoystickPosition = 94 + (msg->axes[2] * 30);
   int throttleLeverPosition = 100 - (msg->axes[1] * 15);
 
   // extreme low speed on Y button hold for mapping purposes
@@ -145,11 +151,24 @@ void navigationCallback(const geometry_msgs::Twist::ConstPtr& msg)
 void realnavigationCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
 	if (!flag){
-		throttle = 100 - ((msg->linear.x)/0.2)*15;
-		
-        steering = 90 - ((msg->angular.z)/0.2)*20;
-        
-        autonavigation = (steering * 1000) + throttle;
+		double radius = abs(msg->linear.x / msg->angular.z);
+		double steering_angle = atan(wheelbase / radius);
+		if (msg->linear.x > 0){
+		throttle = 100 - ((msg->linear.x)/0.2)*7;
+		if (msg->angular.z < 0)
+		steering = 94 - (steering_angle/degreesToRadians(30))*15;
+		else
+		steering = 94 + (steering_angle/degreesToRadians(30))*15;
+		 //	steering = 94 + ((msg->angular.z)/0.2)*30;
+	}
+	else {
+		throttle = 100 + ((msg->linear.x/0.2)*10);
+		if (msg->angular.z < 0)
+        steering = 94 + ((steering_angle)/degreesToRadians(45))*25;
+        else
+        steering = 94 - ((steering_angle)/degreesToRadians(45))*25;
+	}
+       autonavigation = (steering * 1000) + throttle;  //autonavigation = (steering * 1000) + 100; 
         timeSinceLastMessage = 0;
 	}
 }
