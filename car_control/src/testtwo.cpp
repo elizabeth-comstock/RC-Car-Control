@@ -67,26 +67,27 @@ double xPosition, yPosition, zPosition, pythagoreanDistance, deltaDistance;
 
 // concurrently stores timestamps
 uint32_t timeArray[2][6];
-uint32_t seconds, nanoseconds, deltaSeconds, deltaNanoseconds, deltaTime;
+uint32_t seconds, nanoseconds, deltaSeconds, deltaNanoseconds;
+double deltaTime; 
 
 // input as in PID input, setpoint, output
 double linearVelocity = 0;
 
 int debugIterations = 1;
 
-/**********************************************************************************
- If no signal is received from the XBox controller after a while due to a disconnect 
- or error, "steering 90 throttle 110" is sent to the Arduino to instruct it to turn
- the car straight and brake. 
- **********************************************************************************/
 double degreesToRadians(double angle_in_degrees)
 {
 	return angle_in_degrees * (M_PI / 180.0);
 }
 
+/**********************************************************************************
+ If no signal is received from the XBox controller after a while due to a disconnect 
+ or error, "steering 90 throttle 110" is sent to the Arduino to instruct it to turn
+ the car straight and brake. 
+ **********************************************************************************/
 void stopCallback()
 {
-  navigation.data = 97100;
+	navigation.data = 97100;
 }
 
 /**********************************************************************************
@@ -117,8 +118,14 @@ void calcSpeedCallback(const nav_msgs::Odometry::ConstPtr& odom)
 	
 	positionArray[3][5] = pythagoreanDistance;
 	
-	deltaDistance = abs(pythagoreanDistance - positionArray[3][0]);
-	
+	if (pythagoreanDistance > positionArray[3][0])
+	{
+		deltaDistance = pythagoreanDistance - positionArray[3][0];
+	}
+	else
+	{
+		deltaDistance = positionArray[3][0] - pythagoreanDistance;
+	}
 	
 	// updates the time array by shifting every value one position left
 	for (int row = 0; row < 2; ++row)
@@ -137,51 +144,55 @@ void calcSpeedCallback(const nav_msgs::Odometry::ConstPtr& odom)
 	nanoseconds = timeArray[1][5];
 	
 	// calculates time elapsed
-	deltaSeconds = seconds - timeArray[0][0];
-	deltaNanoseconds = nanoseconds - timeArray[1][0];
+	if (seconds == timeArray[0][0])
+	{
+		deltaNanoseconds = nanoseconds - timeArray[1][0];
+	}
+	else
+	{
+		deltaNanoseconds = nanoseconds + 1000000000 - timeArray[1][0];
+	}
 	
-	deltaTime = ( deltaSeconds * pow(10, 9) ) + deltaNanoseconds;
+	deltaTime = deltaNanoseconds / pow(10, 9);
 	
 	// now we calculate the linear velocity
 	linearVelocity = deltaDistance / deltaTime;
-	
 }
 
 void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg) 
 {
-  int button = msg->buttons[2];
-  if (button == 1){
-	  flag = !flag;
-  }
+	int button = msg->buttons[2];
+	if (button == 1)
+	{
+		flag = !flag;
+	}
   
-  // for normal forward operation. the two integers must be declared in this scope. 
-  int steeringJoystickPosition = 97 + (msg->axes[2] * 30);
-  int throttleLeverPosition = 100 - (msg->axes[1] * 15);
+	// for normal forward operation. the two integers must be declared in this scope. 
+	int steeringJoystickPosition = 97 + (msg->axes[2] * 30);
+	int throttleLeverPosition = 100 - (msg->axes[1] * 15);
 
-  // extreme low speed on Y button hold for mapping purposes
-  if (msg->axes[5] == 1)
-  {
-    throttleLeverPosition = 93;
-  }
+	// extreme low speed on Y button hold for mapping purposes
+	if (msg->axes[5] == 1)
+	{
+		throttleLeverPosition = 93;
+	}
 
-  // this makes the brakes more responsive and enables a reverse function
-  if (msg->axes[1] < -0.03)
-  {
-    throttleLeverPosition = 100 - (msg->axes[1] * 24);
-  }
+	// this makes the brakes more responsive and enables a reverse function
+	if (msg->axes[1] < -0.03)
+	{
+		throttleLeverPosition = 100 - (msg->axes[1] * 24);
+	}
 
-  // emergency brake
-  if (msg->axes[5] == -1)
-  {
-    throttleLeverPosition = 150;
-  }
+	// emergency brake
+	if (msg->axes[5] == -1)
+	{
+		throttleLeverPosition = 150;
+	}
 
+	// first three digits steering, last three digits throttle
+	joynavigation = (steeringJoystickPosition * 1000) + throttleLeverPosition;
 
-  // first three digits steering, last three digits throttle
-  joynavigation = (steeringJoystickPosition * 1000) + throttleLeverPosition;
-
-  timeSinceLastMessage = 0;
-
+	timeSinceLastMessage = 0;
 }
 
 /**********************************************************************************
@@ -193,18 +204,21 @@ void joystickCallback(const sensor_msgs::Joy::ConstPtr& msg)
  **********************************************************************************/
 void realnavigationCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
-	if (!flag){
-		double angular_z = msg->angular.z;
+	if (!flag)
+	{
+		double angular_z = msg->angular.z;	
 		
-/*** NEW CODE BY MAH YI FONG HERE, DON'T TRUST HIM THOUGH ***/		
 		angularZprintout = msg->angular.z;
 		linearXprintout = msg->linear.x;
 		
 		double steering_ratio = 0;
 		
-		if (angular_z == 0){
+		if (angular_z == 0)
+		{
 			steering_ratio = 0;
-		} else {
+		} 
+		else 
+		{
 			radius = (msg->linear.x / msg->angular.z);
 		
 			steering_angle = atan(wheelbase / radius); 
@@ -212,165 +226,147 @@ void realnavigationCallback(const geometry_msgs::Twist::ConstPtr& msg)
 			throttle = 100 - ((msg->linear.x)/0.2)*6;
 		
 			steering_ratio = steering_angle/degreesToRadians(30);
-			if (steering_ratio > 3.0){
+			
+			if (steering_ratio > 3.0)
+			{
 				steering_ratio = 3.0;
 			}
-			if (steering_ratio < -3.0){
+			
+			if (steering_ratio < -3.0)
+			{
 				steering_ratio = -3.0;
 			}
 		}
 		
-		steering = 97 + steering_ratio*20;
-
-/*** HE'S THE HIGH SCHOOL INTERN WHO SET THE BATTERY ON FIRE ***/
-
-/***** THIS PORTION OF CODE MIGHT BE CAUSING THE CAR TO SWAY ********
- *  
-		if (angular_z == 0){
-			angular_z = 0.00000001;
-		}
-		radius = (msg->linear.x / msg->angular.z);
-		
-		//if (radius < 0)
-		//	radius = -radius;
-		
-		steering_angle = atan(wheelbase / radius); 
-		
-		// (msg->linear.x > 0){
-		throttle = 100 - ((msg->linear.x)/0.2)*6;
-		
-		double steering_ratio = steering_angle/degreesToRadians(30);
-		if (steering_ratio > 1.0){
-			steering_ratio = 1.0;
-		}
-		if (steering_ratio < -1.0){
-			steering_ratio = -1.0;
-		}
-		
-		steering = 97 + steering_ratio*20;
- *
- **************** SO I AM COMMENTING IT OUT FOR NOW *******************/
+		steering = 97 + steering_ratio * 20;
  
-       autonavigation = (steering * 1000) + throttle;  
-       timeSinceLastMessage = 0;
+		autonavigation = (steering * 1000) + throttle;  
+		
+		timeSinceLastMessage = 0;
 	}
 }
 
 int main(int argc, char **argv)
 {
-  /**********************************************************************************
-   The ros::init() function needs to see argc and argv so that it can perform
-   any ROS arguments and name remapping that were provided at the command line.
-   For programmatic remappings you can use a different version of init() which takes
-   remappings directly, but for most command-line programs, passing argc and argv is
-   the easiest way to do it.  The third argument to init() is the name of the node.
+   /**********************************************************************************
+    The ros::init() function needs to see argc and argv so that it can perform
+    any ROS arguments and name remapping that were provided at the command line.
+    For programmatic remappings you can use a different version of init() which takes
+    remappings directly, but for most command-line programs, passing argc and argv is
+    the easiest way to do it.  The third argument to init() is the name of the node.
+  
+    You must call one of the versions of ros::init() before using any other
+    part of the ROS system.
+    **********************************************************************************/
+	ros::init(argc, argv, "car_control");
+
+   /**********************************************************************************
+    NodeHandle is the main access point to communications with the ROS system.
+    The first NodeHandle constructed will fully initialize this node, and the last
+    NodeHandle destructed will close down the node.
+    **********************************************************************************/
+	ros::NodeHandle n;
+
+   /**********************************************************************************
+    Subscribes to topic joy, which the joystick publishes button and lever data to. 
+    On receipt of data, executes function joystickCallback, which converts joystick
+    data to a UInt8 which will be sent to the Arduino. 
+    **********************************************************************************/
+	ros::Subscriber sub = n.subscribe("cmd_vel", 1000, realnavigationCallback);
+	ros::Subscriber suby = n.subscribe("joy", 1000, joystickCallback);
+	ros::Subscriber subz = n.subscribe("camera/odom", 1000, calcSpeedCallback);
+
+   /**********************************************************************************
+    The advertise() function is how you tell ROS that you want to publish on a given 
+    topic name. This invokes a call to the ROS master node, which keeps a registry of 
+    who is publishing and who is subscribing. After this advertise() call is made, 
+    the master node will notify anyone who is trying to subscribe to this topic name,
+    and they will in turn negotiate a peer-to-peer connection with this node.  
+    advertise() returns a Publisher object which allows you to publish messages on 
+    that topic through a call to publish(). Once all copies of the returned Publisher
+    object are destroyed, the topic will be automatically unadvertised.
    
-   You must call one of the versions of ros::init() before using any other
-   part of the ROS system.
-   **********************************************************************************/
-  ros::init(argc, argv, "car_control");
+    The second parameter to advertise() is the size of the message queue used for
+    publishing messages.  If messages are published more quickly than we can send them,
+    the number here specifies how many messages to buffer up before throwing some away.
+    **********************************************************************************/
+	ros::Publisher pub = n.advertise<std_msgs::UInt32>("cinnabar", 1000);
 
-  /**********************************************************************************
-   NodeHandle is the main access point to communications with the ROS system.
-   The first NodeHandle constructed will fully initialize this node, and the last
-   NodeHandle destructed will close down the node.
-   **********************************************************************************/
-  ros::NodeHandle n;
+	ros::Rate loop_rate(runFrequency);
 
-  /**********************************************************************************
-   Subscribes to topic joy, which the joystick publishes button and lever data to. 
-   On receipt of data, executes function joystickCallback, which converts joystick
-   data to a UInt8 which will be sent to the Arduino. 
-   **********************************************************************************/
-  ros::Subscriber sub = n.subscribe("cmd_vel", 1000, realnavigationCallback);
-  ros::Subscriber suby = n.subscribe("joy", 1000, joystickCallback);
-  ros::Subscriber subz = n.subscribe("camera/odom", 1000, calcSpeedCallback);
-
-  /**********************************************************************************
-   The advertise() function is how you tell ROS that you want to publish on a given 
-   topic name. This invokes a call to the ROS master node, which keeps a registry of 
-   who is publishing and who is subscribing. After this advertise() call is made, 
-   the master node will notify anyone who is trying to subscribe to this topic name,
-   and they will in turn negotiate a peer-to-peer connection with this node.  
-   advertise() returns a Publisher object which allows you to publish messages on 
-   that topic through a call to publish(). Once all copies of the returned Publisher
-   object are destroyed, the topic will be automatically unadvertised.
-   
-   The second parameter to advertise() is the size of the message queue used for
-   publishing messages.  If messages are published more quickly than we can send them,
-   the number here specifies how many messages to buffer up before throwing some away.
-   **********************************************************************************/
-  ros::Publisher pub = n.advertise<std_msgs::UInt32>("cinnabar", 1000);
-
-  ros::Rate loop_rate(runFrequency);
-
-  while (ros::ok())
-  {
-    // DEBUG
-    // ROS_INFO("%u \t %f \t %f \t", navigation.data, radius, steering_angle);
-	// ROS_INFO("%u \t %f \t %f \t", navigation.data, linearXprintout, angularZprintout);
-	
-	// couts the ENTIRE DISTANCE ARRAY
-	/*for (int row = 0; row < 4; ++row)
+	while (ros::ok())
 	{
-		ROS_INFO("%i \t %f \t %f \t %f \t %f \t %f \t %f \t %f \n", 
-				 row + 1,
-				 positionArray[row][0], 
-				 positionArray[row][1], 
-				 positionArray[row][2], 
-				 positionArray[row][3], 
-				 positionArray[row][4],
-				 positionArray[row][5],
-				 deltaDistance						);
-	}*/
+		// DEBUG
+		// ROS_INFO("%u \t %f \t %f \t", navigation.data, radius, steering_angle);
+		// ROS_INFO("%u \t %f \t %f \t", navigation.data, linearXprintout, angularZprintout);
 	
-	ROS_INFO("Iteration %i", debugIterations);
-	debugIterations++;
-	
-	
-	// couts the ENTIRE TIME ARRARY
-	for (int row = 0; row < 2; ++row)
-	{
-		ROS_INFO("%i \t %u \t %u \t %u \t %u \t %u \t %u \n", 
-				 row + 1,
-				 timeArray[row][0], 
-				 timeArray[row][1], 
-				 timeArray[row][2], 
-				 timeArray[row][3], 
-				 timeArray[row][4],
-				 deltaTime						);
-	}
-	
-	
-	// ROS_INFO("%f \t %f \t %f \n", deltaDistance, deltaTime, linearVelocity);
-	
-	// ROS_INFO("x %f \t y %f \t z %f \t E %f \t", xPosition, yPosition, zPosition, pythagoreanDistance);
+		ROS_INFO("Iteration %i", debugIterations);
+		debugIterations++;
 
-    timeSinceLastMessage = timeSinceLastMessage + (1 / runFrequency);
+		// couts the ENTIRE DISTANCE ARRAY
+		/*
+		for (int row = 0; row < 4; ++row)
+		{
+			ROS_INFO("D%i \t %f \t %f \t %f \t %f \t %f \t %f \t %f", 
+					row + 1,
+					positionArray[row][0], 
+					positionArray[row][1], 
+					positionArray[row][2], 
+					positionArray[row][3], 
+					positionArray[row][4],
+					positionArray[row][5],
+					deltaDistance						);
+		}
+		
+		
+		// couts the ENTIRE TIME ARRARY
+		
+		for (int row = 0; row < 2; ++row)
+		{
+			ROS_INFO("T%i \t %u \t %u \t %u \t %u \t %u \t %u \t %f", 
+					row + 1,
+					timeArray[row][0], 
+					timeArray[row][1], 
+					timeArray[row][2], 
+					timeArray[row][3], 
+					timeArray[row][4],
+					timeArray[row][5],
+					deltaTime						);
+		}
+		*/
+		
+		ROS_INFO("dS: %f \tdT: %f \tV: %f", deltaDistance, deltaTime, linearVelocity);
+	
+		// ROS_INFO("x %f \t y %f \t z %f \t E %f \t", xPosition, yPosition, zPosition, pythagoreanDistance);
+
+		timeSinceLastMessage = timeSinceLastMessage + (1 / runFrequency);
     
-    if (timeSinceLastMessage > noMessageThreshold)
-    { 
-        ROS_INFO("No movement instructions received for >2 seconds. Default stop code activated.");
-        stopCallback();
-	}
-    /*******************************************************************************
-     The publish() function is how you send messages. The parameter is the message
-     object. The type of this object must agree with the type given as a template
-     parameter to the advertise<>() call, as was done in the constructor above.
-     *******************************************************************************/
-    if (flag){
-		navigation.data = joynavigation;
-		pub.publish(navigation);
-	}
-	else{
-		navigation.data = autonavigation;
-		pub.publish(navigation);
-	}
+		if (timeSinceLastMessage > noMessageThreshold)
+		{	 
+			ROS_INFO("No movement instructions received for >2 seconds. Default stop code activated.\n");
+			stopCallback();
+		}
+    
+	   /*******************************************************************************
+		The publish() function is how you send messages. The parameter is the message
+		object. The type of this object must agree with the type given as a template
+		parameter to the advertise<>() call, as was done in the constructor above.
+		*******************************************************************************/
+		if (flag)
+		{
+			navigation.data = joynavigation;
+			pub.publish(navigation);
+		}
+		else
+		{
+			navigation.data = autonavigation;
+			pub.publish(navigation);
+		}
 	
-    ros::spinOnce();
+		ros::spinOnce();
 
-    loop_rate.sleep();
-  }
+		loop_rate.sleep();
+	}
 
-  //return 0;
+	return 0;
 }
