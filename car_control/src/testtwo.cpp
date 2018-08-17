@@ -92,6 +92,10 @@ void stopCallback()
 
 /**********************************************************************************
  Calculates linear speed based on visual odometry. 
+ 
+ Note to self: DO NOT use odometry for reverse, stick with proprietary Cinnabar. 
+ The reverse function on this particular car is very weird and only used in short
+ bursts, as recovery manouevres, by the local planner. 
  **********************************************************************************/
 void calcSpeedCallback(const nav_msgs::Odometry::ConstPtr& odom)
 {
